@@ -2,9 +2,9 @@ import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 import { type RouteRecordRaw, type RouteMeta } from 'vue-router';
 import { IMenu } from '../types';
-import { permissionRoutes } from '../router';
+import { permissionRoutes, router } from '../router';
 
-export const usePermission = defineStore('permission', () => {
+export const usePermissionStore = defineStore('permission', () => {
   const userInfo = reactive<{
     uid: string;
     permissions: string[];
@@ -26,13 +26,17 @@ export const usePermission = defineStore('permission', () => {
         // if (!storage.get(import.meta.env.VITE_APP_TOKEN_KEY)) {
         //   throw new Error('没有登录信息')
         // }
-        const res = await Promise.resolve({ data: { id: '123' } });
-        if (res) {
+        const res = await fetch('/api/getUserInfo').then(response => response.json())
+        if (res && res.ret === 0 && res.data) {
           userInfo.uid = res.data.id;
-          // 将权限信息同步到路由和菜单
-          // await syncRoutesAndMenus()
-          // 过滤菜单仅留下有权限的
-          // menus.value = filterMenusByPermissions(defaultMenus)
+          userInfo.permissions = res.data.permissions ?? []
+          // 将权限信息同步到路由
+          await addPermissionsToRoutes();
+          // 动态添加权限路由
+          addRoutes();
+          // 根据权限路由生成菜单
+          userInfo.menus = generateMenusByRoutes(permissionRoutes);
+          console.log(userInfo.menus)
         } else {
           userInfo.permissions = [];
         }
@@ -53,45 +57,42 @@ export const usePermission = defineStore('permission', () => {
     bootstrap();
   }
 
-  async function addPermissionsToRoutesAndMenus() {
+  async function addPermissionsToRoutes() {
     let firstValidRoute: RouteRecordRaw | null = null;
     try {
-      const res = Promise.resolve(); // 请求路由权限（适用于）
-      // 遍历两个树，将permissions赋值到
-      const _menus: IMenu[] = [];
-      const stackToBeUpdate = [...permissionRoutes];
-      const stackTemplate: RouteRecordRaw[] = [];
-
-      while (stackToBeUpdate.length) {
-        const itemToUpdate = stackToBeUpdate.shift() as RouteRecordRaw;
-        const itemTemplate = stackTemplate.shift() as RouteRecordRaw;
-
-        // 赋值
-        if (
-          !itemToUpdate.redirect &&
-          (itemToUpdate.name === itemTemplate.name ||
-            itemToUpdate.path === itemTemplate.path)
-        ) {
-          // 两个节点key相同的树，这个if应该永远都进入
-          if (itemTemplate.meta?.permissions?.length) {
-            itemToUpdate.meta = {
-              ...itemToUpdate.meta,
-              permissions: [...itemTemplate.meta.permissions],
-            } as RouteMeta;
+      const res = await fetch('/api/permission').then(response => response.json()); // 请求路由权限（适用于）
+      if (res && res.ret === 0 && res.data) {
+        // 遍历两个树，将permissions赋值到
+        const stackToBeUpdate = [...permissionRoutes];
+        const stackTemplate: RouteRecordRaw[] = res.data;
+  
+        while (stackToBeUpdate.length) {
+          const itemToUpdate = stackToBeUpdate.shift() as RouteRecordRaw;
+          const itemTemplate = stackTemplate.shift() as RouteRecordRaw;
+  
+          // 赋值
+          if (
+            !itemToUpdate.redirect &&
+            (itemToUpdate.name === itemTemplate.name ||
+              itemToUpdate.path === itemTemplate.path)
+          ) {
+            // 两个节点key相同的树，这个if应该永远都进入
+            if (itemTemplate.meta?.permissions?.length) {
+              itemToUpdate.meta = {
+                ...itemToUpdate.meta,
+                permissions: [...itemTemplate.meta.permissions],
+              } as RouteMeta;
+            }
+  
+            if (!firstValidRoute && validatePermission(itemToUpdate.meta?.permissions) && !itemToUpdate.children) {
+              firstValidRoute = { ...itemToUpdate };
+            }
           }
-
-          if (!firstValidRoute && validateRoute(itemToUpdate)) {
-            firstValidRoute = { ...itemToUpdate };
+  
+          if (itemToUpdate.children && itemToUpdate.children.length > 0) {
+            stackToBeUpdate.push(...itemToUpdate.children);
+            stackTemplate.push(...(itemTemplate.children ?? []));
           }
-
-          if (itemToUpdate.meta?.menu) {
-            // TODO 菜单拾取
-          }
-        }
-
-        if (itemToUpdate.children && itemToUpdate.children.length > 0) {
-          stackToBeUpdate.push(...itemToUpdate.children);
-          stackTemplate.push(...(itemTemplate.children ?? []));
         }
       }
     } catch (e) {}
@@ -99,15 +100,46 @@ export const usePermission = defineStore('permission', () => {
     // 处理根路径重定向
     permissionRoutes.unshift({
       path: '/',
-      redirect: firstValidRoute ?? { name: 'Forbidden' }
-    })
+      redirect: firstValidRoute ?? { name: 'Forbidden' },
+    });
+
+    console.log(permissionRoutes)
   }
 
-  function validateRoute(to: RouteRecordRaw) {
-    if (!to.meta?.permissions) {
+  function addRoutes() {
+    permissionRoutes.forEach((route) => {
+      router.addRoute(route);
+    });
+  }
+
+  function generateMenusByRoutes(routes: RouteRecordRaw[]) {
+    return routes.reduce<IMenu[]>((prev, curr) => {
+      if (curr.meta?.menu) {
+        const item: IMenu = { ...curr.meta.menu as IMenu };
+        if (curr.meta.permissions?.length) {
+          item.permissions = [...curr.meta.permissions];
+        }
+        if (validatePermission(item.permissions)) {
+          if (curr.name) {
+            item.routeName = curr.name;
+          }
+          if (curr.children?.length) {
+            item.children = generateMenusByRoutes(curr.children);
+            if (item.children.length === 0) {
+              Reflect.deleteProperty(item, 'children');
+            }
+          }
+          prev.push(item);
+        }
+      }
+      return prev;
+    }, []);
+  }
+
+  function validatePermission(p?: string[]) {
+    if (!p || p.length === 0) {
       return true;
     }
-    const p = to.meta.permissions;
     return p.some((_p) => userInfo.permissions.includes(_p));
   }
 
@@ -116,5 +148,6 @@ export const usePermission = defineStore('permission', () => {
     state,
     bootstrap,
     reboot,
+    validatePermission
   };
 });

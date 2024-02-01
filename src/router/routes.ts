@@ -7,16 +7,16 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../pages/login.vue'),
     meta: {
       title: '登录',
-      layout: 'blank'
-    }
+      layout: 'blank',
+    },
   },
   {
     path: '/forbidden',
     name: 'Forbidden',
     component: () => import('../pages/forbidden.vue'),
     meta: {
-      layout: 'blank'
-    }
+      layout: 'blank',
+    },
   },
 ];
 
@@ -26,8 +26,8 @@ export const catchAllRoutes: RouteRecordRaw[] = [
     name: 'NotFound',
     component: () => import('../pages/not-found.vue'),
     meta: {
-      layout: 'blank'
-    }
+      layout: 'blank',
+    },
   },
 ];
 
@@ -40,8 +40,8 @@ export const permissionRoutes: RouteRecordRaw[] = [
       menu: {
         key: 'dashboard',
         label: '数据看板',
-      }
-    }
+      },
+    },
   },
   {
     path: '/nest',
@@ -50,12 +50,12 @@ export const permissionRoutes: RouteRecordRaw[] = [
       menu: {
         key: 'nest',
         label: '嵌套',
-      }
+      },
     },
     children: [
       {
         path: '',
-        redirect: {}
+        redirect: { name: 'NestList' },
       },
       {
         path: 'list',
@@ -65,8 +65,46 @@ export const permissionRoutes: RouteRecordRaw[] = [
           menu: {
             key: 'nest.list',
             label: '嵌套列表',
-          }
+          },
         },
+      },
+      {
+        path: 'upload',
+        component: () => import('../components/layout/Blank.vue'),
+        meta: {
+          menu: {
+            key: 'nest.upload',
+            label: '嵌套上传',
+          },
+        },
+        children: [
+          {
+            path: '',
+            redirect: { name: 'NestUploadPhoto' },
+          },
+          {
+            path: 'photo',
+            name: 'NestUploadPhoto',
+            component: () => import('../pages/nest/upload/photo.vue'),
+            meta: {
+              menu: {
+                key: 'nest.list.photo',
+                label: '嵌套上传照片',
+              },
+            },
+          },
+          {
+            path: 'video',
+            name: 'NestUploadVideo',
+            component: () => import('../pages/nest/upload/video.vue'),
+            meta: {
+              menu: {
+                key: 'nest.list.video',
+                label: '嵌套上传视频',
+              },
+            },
+          },
+        ],
       },
       {
         path: 'detail/:id',
@@ -74,7 +112,7 @@ export const permissionRoutes: RouteRecordRaw[] = [
         component: () => import('../pages/nest/detail.vue'),
         props: true,
         meta: {},
-      }
-    ]
-  }
-]
+      },
+    ],
+  },
+];

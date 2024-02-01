@@ -16,6 +16,9 @@ dependencies:
     version: 4.2.5(vue@3.4.15)
 
 devDependencies:
+  '@types/mockjs':
+    specifier: ^1.0.10
+    version: 1.0.10
   '@vitejs/plugin-vue':
     specifier: ^4.5.2
     version: 4.6.2(vite@5.0.12)(vue@3.4.15)
